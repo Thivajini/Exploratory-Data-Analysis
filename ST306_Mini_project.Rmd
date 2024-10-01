@@ -1,0 +1,223 @@
+---
+title: "ST306-Mini Project"
+author: "S/18/824"
+date: "2024-01-24"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Load the packages
+```{r}
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(lubridate)
+library(ggplot2)
+```
+
+Import the dataset
+```{r}
+air_quality_data<-read_csv("../data/london_local_data_2022.csv",col_types = c("cfcddddddd"))
+head(air_quality_data)
+```
+```{r}
+glimpse(air_quality_data)
+```
+##In this data set, 10 columns and 289,069 rows are there with some missing values.
+##Some monitoring sites in London have nitrite oxides and particulate matter 10 where as in other sites ozone and sulphur dioxide concentration is high.
+
+Handling missing values and NA values
+```{r}
+air_quality_data <- air_quality_data %>%
+  remove_empty(c("cols","rows"))
+
+#view(air_quality_data)
+```
+
+##Date is in character format.So,
+##Convert date from character to date format
+##Using lubridate library
+```{r}
+air_quality_data$date <- ymd_hms(air_quality_data$date)
+str(air_quality_data)
+```
+
+
+```{r}
+summary(air_quality_data)
+```
+##According to this summary statistics we can see concentration of nitrite oxide and ozone is very high in London city.
+
+
+```{r}
+pollutants_1 <- air_quality_data %>%
+  filter(!is.na(no2)) %>%
+  select(site,code,no2) 
+  
+head(pollutants_1)
+  
+```
+
+
+
+```{r}
+distribution1<-pollutants_1 %>%
+  ggplot(mapping = aes(x = as.factor(code),y = no2)) + 
+  geom_boxplot() +
+  theme_classic()+
+  coord_flip() +
+  labs(x = "Codes of sites",
+       y = "No2",
+       title = "No2 concentration in each sites")
+distribution1
+
+
+```
+##This graph shows the distribution of No2 in each sites.
+##In this data set many outliers are exist.
+
+```{r}
+postscript(file = "distribution1.eps",width = 10,height = 5,horizontal = FALSE)
+dev.off()
+```
+```{r}
+pollutants_2 <- pollutants_1 %>%
+  group_by(code) %>%
+  summarise(concentration = sum(no2),Average = mean(no2)) %>%
+  arrange(desc(concentration))
+pollutants_2
+```
+##According to this data Lambeth - Brixton Road have high concentration of nitrogen dioxide among 33 monitoring sites.
+##Ealing - Hanger Lane Gyratory and City of London - Walbrook Wharf also have high nitrogen dioxide concentration.
+
+```{r}
+distribution2 <- pollutants_2 %>%
+  ggplot(mapping = aes(x = code, y = concentration)) +
+  geom_bar(fill = "red",stat = "identity") +
+  coord_flip() +
+  labs(x = "codes",
+       y = "NO2 concentration",
+       title = "No2 concentration with sites") +
+  theme_classic()
+distribution2
+
+```
+##This graph clearly  shows which sites have high No2 concentration.
+
+
+```{r}
+postscript(file = "distribution2.eps",width = 6,height = 4,horizontal = FALSE)
+dev.off()
+```
+
+
+```{r}
+distribution_3 <- air_quality_data %>%
+  group_by(date) %>%
+  filter(!is.na(pm2_5),!is.na(pm10)) %>%
+  ggplot(mapping = aes(x = date)) +
+  geom_line(aes(y = pm10,color = "pm10")) +
+  geom_line(aes(y = pm2_5,color = "pm2.5")) +
+  labs(x = "Date",
+       y = "Particulate Matter level",
+       title = "PM10 and PM2.5 levels over time",
+       color = "Particle type") 
+distribution_3
+  
+```
+##This graph shows the variation of particulate matter 10 and particulate matter 2.5 in each sites in the year 2022.
+##Particulate matter 10 is in high amount than that of 2.5 in whole year.
+##In the end of November particulate matter 2.5 is in high concentration than particulate matter 2.5 
+```{r}
+postscript(file = "distribution3.img",width = 6,height = 6,horizontal = FALSE)
+dev.off()
+```
+```{r}
+pollutants_3 <- air_quality_data %>%
+  filter(!is.na(pm10)) %>%
+  group_by(code) %>%
+  summarise(count = n(),Average_concentration = mean(pm10))
+pollutants_3
+```
+
+```{r}
+distribution4 <- pollutants_3 %>%
+  ggplot(mapping = aes(x = code, y = Average_concentration)) +
+  geom_bar(stat = "identity",fill = "blue")
+distribution4
+```
+##According to this graph lambeth has high particulate matter 10 and all other sites have nearly same concentration.
+
+```{r}
+pollutants_4 <- air_quality_data %>%
+  filter(!is.na(o3)) %>%
+  group_by(code) %>%
+  summarise(o3_concentration = sum(o3))
+pollutants_4
+
+```
+##Ozone concentration is measured only in 3 sites and Southwark - Elephant and Castle have high concentration.
+
+```{r}
+distribution5 <- pollutants_4 %>%
+  group_by(code) %>%
+  ggplot(mapping = aes(x = code,y = o3_concentration)) +
+  geom_bar(stat = "identity",fill = c("red","green","yellow")) +
+  labs(x = "Codes of monitoring sites",
+       y = "Ozone concentration",
+       title = "Barplot for the ozone concentration in each sites") 
+distribution5 
+  
+```
+```{r}
+pollutants_4$percent <- scales::percent(pollutants_4$o3_concentration/sum(pollutants_4$o3_concentration))
+distribution7 <- pollutants_4 %>%
+  group_by(code) %>%
+  ggplot(mapping = aes(x = "",y = o3_concentration,fill = code)) +
+  geom_bar(stat = "identity",width = 1) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  geom_text(aes(label = percent),position = position_stack(vjust = 0.5))
+distribution7
+```
+
+
+
+```{r}
+pm25_by_month <- air_quality_data %>%
+  filter(!is.na(pm2_5)) %>%
+  mutate(month = format(date,"%m")) %>%
+  group_by(month) %>%
+  summarise(mean_pm25 = mean(pm2_5))
+pm25_by_month
+```
+```{r}
+distribution6 <- pm25_by_month %>%
+  ggplot(mapping = aes(x = month, y = mean_pm25)) +
+  geom_bar(stat = "identity",fill = "orange") +
+  theme_minimal()
+distribution6
+```
+##Check relationship between particulates
+```{r}
+particulates <- air_quality_data %>%
+  filter(!is.na(pm10),!is.na(pm2_5)) %>%
+  select(pm10,pm2_5)
+particulates
+
+cor(particulates)
+```
+
+```{r}
+particulates %>%
+  ggplot(mapping = aes(x = pm10, y = pm2_5)) +
+  geom_point()
+```
+##There is a strong relationship between two particulates.
+
+
+
